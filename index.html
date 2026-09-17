@@ -1,1 +1,108 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Menus - Accueil</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background-color: #8DB600; /* vert pomme */
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 15px 30px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+
+    header h1 {
+      color: #fff;
+      font-size: 1.5rem;
+    }
+
+    .login-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.25);
+      text-decoration: none;
+      transition: background-color 0.2s ease;
+    }
+
+    .login-link:hover {
+      background-color: rgba(255, 255, 255, 0.45);
+    }
+
+    .login-link svg {
+      width: 24px;
+      height: 24px;
+      fill: #fff;
+    }
+
+    main {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .food-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .start-button {
+      position: absolute;
+      top: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 16px 48px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #fff;
+      background-color: #8DB600;
+      border: none;
+      border-radius: 30px;
+      text-decoration: none;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+      transition: background-color 0.2s ease, transform 0.15s ease;
+    }
+
+    .start-button:hover {
+      background-color: #79a100;
+      transform: translateX(-50%) scale(1.05);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Menus</h1>
+    <a href="connexion.html" class="login-link" title="Se connecter" aria-label="Se connecter">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12zm0 2.4c-3.3 0-9.8 1.6-9.8 4.9v2.5h19.6v-2.5c0-3.3-6.5-4.9-9.8-4.9z"/>
+      </svg>
+    </a>
+  </header>
+  <main>
+    <a href="generer.html" class="start-button">Commencer</a>
+    <img src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=1600&q=80" alt="Nourriture" class="food-image">
+  </main>
+</body>
+</html>
 
