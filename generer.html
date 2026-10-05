@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+  {% load static %}
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Générer mon menu</title>
@@ -42,7 +43,12 @@
       return <>
         <nav className="navbar bg-white shadow-sm px-4 px-md-5 py-3">
           <a className="navbar-brand fs-3 fw-bold text-success" href="/">Menus</a>
-          <a className="btn btn-outline-success ms-auto" href="/connexion/">Connexion</a>
+          {% if user.is_authenticated %}
+          <form className="ms-auto" method="post" action="{% url 'logout' %}"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}" /><button className="btn btn-outline-success" type="submit">Se déconnecter</button></form>
+          <a className="btn btn-light border p-1 ms-2" href="{% url 'profile' %}" aria-label="Modifier mon profil" title="Modifier mon profil"><img src="{% static 'profile_pictures/' %}{{ profile.avatar }}" alt="Photo de profil de {{ user.username }}" title="Photo de profil de {{ user.username }}" width="40" height="40" className="rounded-circle" /></a>
+          {% else %}
+          <a className="btn btn-outline-success ms-auto" href="{% url 'login' %}">Connexion</a>
+          {% endif %}
         </nav>
         <main className="container py-5">
           <div className="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
