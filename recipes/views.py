@@ -8,7 +8,7 @@ from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from .forms import ProfileForm
+from .forms import ProfileForm, RecipeForm
 from .models import Recipe, UserProfile
 
 WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
@@ -114,7 +114,7 @@ def logout_page(request):
 
 @require_GET
 def recipe_list(request):
-    recipes = list(Recipe.objects.values("id", "name"))
+    recipes = list(Recipe.objects.values("id", "name", "ingredients", "instructions", "preparation_time", "cooking_time", "servings", "recipe_url", "created_at", "created_by"))
     return JsonResponse(recipes, safe=False)
 
 
@@ -137,3 +137,19 @@ def generate_weekly_menu(request):
         for index, weekday in enumerate(WEEKDAYS)
     ]
     return JsonResponse({"days": days})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def create_recipe(request):
+    if request.method == "POST":
+        form = RecipeForm(request.POST, user=request.user)
+        if form.is_valid():
+            form.save()
+            return redirect("home")
+    else:
+        form = RecipeForm(user=request.user)
+
+    context = _profile_context(request)
+    context["form"] = form
+    return render(request, "ajouter-recette.html", context)

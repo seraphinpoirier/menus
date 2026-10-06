@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  {% load static %}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ajouter une recette - Menus</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { min-height: 100vh; background: #f4f7ee; }
+    .navbar-brand, h1 { font-family: Georgia, serif; }
+  </style>
+</head>
+<body>
+  <nav class="navbar bg-white shadow-sm px-4 px-md-5 py-3">
+    <a class="navbar-brand fs-3 fw-bold text-success" href="{% url 'home' %}">Menus</a>
+    <form class="ms-auto" method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="btn btn-outline-success" type="submit">Se déconnecter</button></form>
+    <a class="btn btn-light border p-1 ms-2" href="{% url 'profile' %}" aria-label="Modifier mon profil" title="Modifier mon profil"><img src="{% static 'profile_pictures/' %}{{ profile.avatar }}" alt="Photo de profil de {{ user.username }}" title="Photo de profil de {{ user.username }}" width="40" height="40" class="rounded-circle" /></a>
+  </nav>
+  <main class="container py-5">
+    <div class="row justify-content-center">
+      <section class="col-12 col-md-8 col-lg-6">
+        <div class="bg-white border shadow-sm p-4 p-md-5">
+          <p class="text-uppercase text-success fw-semibold">Espace personnel</p>
+          <h1 class="h2 fw-bold mb-4">Ajouter une recette</h1>
+          <form method="post" novalidate>
+            {% csrf_token %}
+            {% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+            
+            <div class="mb-4">
+              <label class="form-label" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+              {{ form.name }}
+              {% for error in form.name.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label" for="{{ form.ingredients.id_for_label }}">{{ form.ingredients.label }}</label>
+              {{ form.ingredients }}
+              {% for error in form.ingredients.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              <div class="form-text">Séparez les ingrédients par des virgules</div>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label" for="{{ form.instructions.id_for_label }}">{{ form.instructions.label }}</label>
+              {{ form.instructions }}
+              {% for error in form.instructions.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+
+            <div class="row mb-4">
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.preparation_time.id_for_label }}">{{ form.preparation_time.label }}</label>
+                {{ form.preparation_time }}
+                {% for error in form.preparation_time.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.cooking_time.id_for_label }}">{{ form.cooking_time.label }}</label>
+                {{ form.cooking_time }}
+                {% for error in form.cooking_time.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="{{ form.servings.id_for_label }}">{{ form.servings.label }}</label>
+                {{ form.servings }}
+                {% for error in form.servings.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </div>
+            </div>
+            <div class="mb-4">
+              <label class="form-label" for="{{ form.recipe_url.id_for_label }}">{{ form.recipe_url.label }}</label>
+              {{ form.recipe_url }}
+              {% for error in form.recipe_url.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              <div class="form-text">Laissez vide si vous ne souhaitez pas ajouter de lien</div>
+            </div>
+
+            <div class="d-flex gap-3">
+              <button class="btn btn-success" type="submit">Enregistrer la recette</button>
+              <a class="btn btn-outline-secondary" href="{% url 'home' %}">Annuler</a>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

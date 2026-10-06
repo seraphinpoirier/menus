@@ -1,5 +1,13 @@
 # Created by venv; see https://docs.python.org/3/library/venv.html
-*.pyc
-bin/*
-lib/*
+venv/
+lib/
+bin/
 pyvenv.cfg
+
+# Python
+*.pyc
+__pycache__/
+
+# Database
+*.sqlite3
+db.sqlite3
