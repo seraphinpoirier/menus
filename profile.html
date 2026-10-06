@@ -24,6 +24,7 @@
         <div class="bg-white border shadow-sm p-4 p-md-5">
           <p class="text-uppercase text-success fw-semibold">Espace personnel</p>
           <h1 class="h2 fw-bold mb-4">Mon profil</h1>
+          <p><a class="btn btn-outline-success mb-4" href="{% url 'meals' %}">Gérer mes repas</a></p>
           <form method="post" novalidate>
             {% csrf_token %}
             {% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}

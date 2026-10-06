@@ -12,6 +12,44 @@ class Recipe(models.Model):
 		return self.name
 
 
+class MealFrequency(models.Model):
+	class Frequency(models.TextChoices):
+		NEVER = "never", "Jamais"
+		REGULAR = "regular", "Régulier"
+		VERY_FREQUENT = "very_frequent", "Très fréquent"
+
+	user = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.CASCADE,
+		related_name="meal_frequencies",
+	)
+	recipe = models.ForeignKey(
+		Recipe,
+		on_delete=models.CASCADE,
+		related_name="user_frequencies",
+	)
+	frequency = models.CharField(
+		max_length=20,
+		choices=Frequency.choices,
+		default=Frequency.REGULAR,
+	)
+
+	class Meta:
+		constraints = [
+			models.UniqueConstraint(
+				fields=["user", "recipe"],
+				name="recipes_mealfrequency_user_recipe_unique",
+			),
+			models.CheckConstraint(
+				condition=models.Q(frequency__in=["never", "regular", "very_frequent"]),
+				name="recipes_mealfrequency_frequency_valid",
+			),
+		]
+
+	def __str__(self):
+		return f"{self.user} - {self.recipe}: {self.get_frequency_display()}"
+
+
 class UserProfile(models.Model):
 	class Avatar(models.TextChoices):
 		DEFAULT = "pfp_default.png", "Par défaut"
