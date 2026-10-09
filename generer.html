@@ -5,11 +5,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Générer mon menu</title>
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body { background: #f4f7ee; color: #243018; }
     .navbar-brand, h1 { font-family: Georgia, serif; }
     .meal-card { border-left: 4px solid #729b31; }
+    .meal-line { min-height: 2.25rem; }
+    .frequency-marker { display: inline-flex; width: 1.25rem; height: 1.25rem; align-items: center; justify-content: center; font-size: 1.35rem; font-weight: 700; line-height: 1; }
+    .frequency-marker.never { color: #dc3545; }
+    .frequency-marker.regular { border-radius: 50%; background: linear-gradient(90deg, #198754 50%, #888 50%); }
+    .frequency-marker.very_frequent { border-radius: 50%; background: #77d64c; }
+    .frequency-modal-backdrop { position: fixed; inset: 0; z-index: 1050; display: grid; place-items: center; padding: 1rem; background: rgb(0 0 0 / 50%); }
+    .frequency-modal { width: min(100%, 34rem); background: white; border-radius: .5rem; box-shadow: 0 1rem 3rem rgb(0 0 0 / 25%); }
+    .frequency-choice { min-width: 6rem; }
+    .frequency-choice .frequency-marker { width: 2.5rem; height: 2.5rem; font-size: 2.5rem; }
   </style>
 </head>
 <body>
@@ -22,13 +32,28 @@
       const [days, setDays] = React.useState([]);
       const [error, setError] = React.useState('');
       const [loading, setLoading] = React.useState(true);
+      const [activeMeal, setActiveMeal] = React.useState(null);
+      const [frequencyError, setFrequencyError] = React.useState('');
+      const [savingFrequency, setSavingFrequency] = React.useState(false);
+
+      async function readJsonResponse(response, fallbackMessage) {
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          throw new Error(
+            response.ok
+              ? 'Le serveur a renvoyé une réponse inattendue.'
+              : `${fallbackMessage} (erreur serveur ${response.status}).`
+          );
+        }
+        return response.json();
+      }
 
       async function generateMenu() {
         setLoading(true);
         setError('');
         try {
           const response = await fetch('/api/weekly-menus/generate/');
-          const data = await response.json();
+          const data = await readJsonResponse(response, 'La génération a échoué.');
           if (!response.ok) throw new Error(data.error || 'La génération a échoué.');
           setDays(data.days);
         } catch (exception) {
@@ -36,6 +61,51 @@
         } finally {
           setLoading(false);
         }
+      }
+
+      function frequencyMarker(frequency) {
+        if (frequency === 'never') return <span className="frequency-marker never" aria-hidden="true">×</span>;
+        return <span className={`frequency-marker ${frequency}`} aria-hidden="true" />;
+      }
+
+      async function saveFrequency(frequency) {
+        setSavingFrequency(true);
+        setFrequencyError('');
+        try {
+          const response = await fetch(`/api/meal-frequencies/${activeMeal.id}/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: new URLSearchParams({ frequency })
+          });
+          const data = await readJsonResponse(response, 'La fréquence n’a pas pu être enregistrée.');
+          if (!response.ok) throw new Error(data.error || 'La fréquence n’a pas pu être enregistrée.');
+          setDays(currentDays => currentDays.map(day => ({
+            ...day,
+            lunch: day.lunch.id === data.recipe_id ? { ...day.lunch, frequency: data.frequency } : day.lunch,
+            dinner: day.dinner.id === data.recipe_id ? { ...day.dinner, frequency: data.frequency } : day.dinner
+          })));
+          setActiveMeal(null);
+        } catch (exception) {
+          setFrequencyError(exception.message);
+        } finally {
+          setSavingFrequency(false);
+        }
+      }
+
+      function mealLine(meal) {
+        return <div className="meal-line d-flex align-items-center gap-2 mb-3">
+          <span className="flex-grow-1">{meal.name}</span>
+          {% if user.is_authenticated %}
+          <button className="btn btn-sm btn-light border d-inline-flex align-items-center gap-2" type="button" title={`Modifier la fréquence de ${meal.name}`} aria-label={`Modifier la fréquence de ${meal.name}`} onClick={() => { setActiveMeal(meal); setFrequencyError(''); }}>
+            {frequencyMarker(meal.frequency || 'regular')}
+          </button>
+          {% else %}
+          <a className="btn btn-sm btn-light border" href="{% url 'login' %}?next={% url 'generator' %}" title="Connectez-vous pour régler la fréquence" aria-label="Connectez-vous pour régler la fréquence">⚙</a>
+          {% endif %}
+        </div>;
       }
 
       React.useEffect(() => { generateMenu(); }, []);
@@ -56,10 +126,32 @@
             <button className="btn btn-success px-4" onClick={generateMenu} disabled={loading}>{loading ? 'Génération...' : 'Générer un autre menu'}</button>
           </div>
           {error && <div className="alert alert-danger" role="alert">{error}</div>}
+          {% if not user.is_authenticated %}
+          <p className="text-muted">Connectez-vous pour personnaliser la fréquence de vos repas.</p>
+          {% endif %}
           {loading && !days.length && <p className="text-muted">Préparation de vos repas...</p>}
           <div className="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
-            {days.map((day) => <article className="col" key={day.day}><div className="card meal-card h-100 shadow-sm"><div className="card-body"><h2 className="h4 card-title mb-4">{day.day}</h2><p className="text-uppercase small text-success fw-bold mb-1">Midi</p><p className="mb-4">{day.lunch.name}</p><p className="text-uppercase small text-success fw-bold mb-1">Soir</p><p className="mb-0">{day.dinner.name}</p></div></div></article>)}
+            {days.map((day) => <article className="col" key={day.day}><div className="card meal-card h-100 shadow-sm"><div className="card-body"><h2 className="h4 card-title mb-4">{day.day}</h2><p className="text-uppercase small text-success fw-bold mb-1">Midi</p>{mealLine(day.lunch)}<p className="text-uppercase small text-success fw-bold mb-1">Soir</p>{mealLine(day.dinner)}</div></div></article>)}
           </div>
+          {activeMeal && <div className="frequency-modal-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget && !savingFrequency) setActiveMeal(null); }}>
+            <section className="frequency-modal p-4" role="dialog" aria-modal="true" aria-labelledby="frequency-modal-title">
+              <div className="d-flex align-items-start justify-content-between gap-3 mb-3">
+                <div><h2 className="h4 mb-1" id="frequency-modal-title">Fréquence du repas</h2><p className="text-muted mb-0">{activeMeal.name}</p></div>
+                <button className="btn-close" type="button" aria-label="Fermer" disabled={savingFrequency} onClick={() => setActiveMeal(null)} />
+              </div>
+              {frequencyError && <div className="alert alert-danger py-2" role="alert">{frequencyError}</div>}
+              <div className="d-flex flex-wrap justify-content-center gap-2">
+                {[
+                  ['never', 'Jamais'],
+                  ['regular', 'Régulier'],
+                  ['very_frequent', 'Très fréquent']
+                ].map(([frequency, label]) => <button className={`frequency-choice btn ${activeMeal.frequency === frequency ? 'btn-success' : 'btn-outline-secondary'} d-flex flex-column align-items-center gap-2 py-3`} key={frequency} type="button" disabled={savingFrequency} aria-pressed={activeMeal.frequency === frequency} onClick={() => saveFrequency(frequency)}>
+                  {frequencyMarker(frequency)}<span>{label}</span>
+                </button>)}
+              </div>
+              {savingFrequency && <p className="text-center text-muted mt-3 mb-0">Enregistrement...</p>}
+            </section>
+          </div>}
         </main>
       </>;
     }
