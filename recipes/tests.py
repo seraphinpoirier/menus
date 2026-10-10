@@ -32,6 +32,12 @@ class AuthenticationTests(TestCase):
     def setUp(self):
         self.user_model = get_user_model()
 
+    def test_migration_creates_test_user_with_hashed_password_and_profile(self):
+        user = self.user_model.objects.get(username="test")
+
+        self.assertTrue(user.check_password("test1234"))
+        self.assertTrue(UserProfile.objects.filter(user=user).exists())
+
     def test_registration_creates_hashed_password_and_signs_user_in(self):
         password = "Saffron!River_2048"
 
