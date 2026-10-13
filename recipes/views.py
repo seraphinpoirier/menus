@@ -8,13 +8,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-<<<<<<< HEAD
-from .forms import ProfileForm
-from .models import MealFrequency, Recipe, UserProfile
-=======
 from .forms import ProfileForm, RecipeForm
 from .models import Recipe, UserProfile
->>>>>>> main
 
 WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 MEALS_PER_WEEK = 14
