@@ -26,6 +26,7 @@ class WeeklyMenuTests(TestCase):
         response = self.client.get(reverse("weekly-menu-generate"))
 
         self.assertEqual(response.status_code, 400)
+        
 
 
 class AuthenticationTests(TestCase):
