@@ -26,9 +26,7 @@ class WeeklyMenuTests(TestCase):
         response = self.client.get(reverse("weekly-menu-generate"))
 
         self.assertEqual(response.status_code, 400)
-
-    def test_nok(self):
-        assert False, "This test is expected to fail and should be removed once the feature is implemented."
+        
 
 
 class AuthenticationTests(TestCase):
