@@ -10,6 +10,7 @@ urlpatterns = [
     path("profil/", views.profile_page, name="profile"),
     path("repas/", views.meals_page, name="meals"),
     path("deconnexion/", views.logout_page, name="logout"),
+    path("ajouter-recette/", views.create_recipe, name="create-recipe"),
     path("api/recipes/", views.recipe_list, name="recipe-list"),
     path(
         "api/meal-frequencies/<int:recipe_id>/",
