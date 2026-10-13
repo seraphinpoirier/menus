@@ -9,7 +9,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from .forms import ProfileForm, RecipeForm
-from .models import MealFrequency, Recipe, UserProfile
+from .models import FixedMeal, MealFrequency, Recipe, UserProfile
 
 WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 MEALS_PER_WEEK = 14
@@ -195,7 +195,7 @@ def update_meal_frequency_api(request, recipe_id):
     )
 
 
-def _select_recipes(recipes, frequencies, rng=random):
+def _select_recipes(recipes, frequencies, rng=random, count=MEALS_PER_WEEK):
     eligible_recipes = [
         recipe
         for recipe in recipes
@@ -210,8 +210,8 @@ def _select_recipes(recipes, frequencies, rng=random):
         and rng.random() < VERY_FREQUENT_INCLUSION_RATE
     ]
 
-    if len(frequent_recipes) > MEALS_PER_WEEK:
-        selected_recipes = rng.sample(frequent_recipes, MEALS_PER_WEEK)
+    if len(frequent_recipes) > count:
+        selected_recipes = rng.sample(frequent_recipes, count)
     else:
         selected_recipes = frequent_recipes
         selected_ids = {recipe["id"] for recipe in selected_recipes}
@@ -219,7 +219,7 @@ def _select_recipes(recipes, frequencies, rng=random):
             recipe for recipe in eligible_recipes if recipe["id"] not in selected_ids
         ]
         selected_recipes.extend(
-            rng.sample(remaining_recipes, MEALS_PER_WEEK - len(selected_recipes))
+            rng.sample(remaining_recipes, count - len(selected_recipes))
         )
     rng.shuffle(selected_recipes)
     return selected_recipes
@@ -251,20 +251,89 @@ def generate_weekly_menu(request):
             status=400,
         )
 
-    selected_recipes = _select_recipes(recipes, frequencies)
-    for recipe in selected_recipes:
-        recipe["frequency"] = frequencies.get(
-            recipe["id"], MealFrequency.Frequency.REGULAR
+    recipes_by_id = {recipe["id"]: recipe for recipe in recipes}
+    slots = {}
+    if request.user.is_authenticated:
+        for fixed in FixedMeal.objects.filter(user=request.user):
+            slots[(fixed.weekday, fixed.meal_type)] = recipes_by_id[fixed.recipe_id]
+
+    fixed_ids = {recipe["id"] for recipe in slots.values()}
+    free_slot_count = MEALS_PER_WEEK - len(slots)
+    pool = [recipe for recipe in recipes if recipe["id"] not in fixed_ids]
+    if free_slot_count > 0:
+        eligible_pool = sum(
+            frequencies.get(recipe["id"], MealFrequency.Frequency.REGULAR)
+            != MealFrequency.Frequency.NEVER
+            for recipe in pool
         )
-    days = [
-        {
-            "day": weekday,
-            "lunch": selected_recipes[index * 2],
-            "dinner": selected_recipes[index * 2 + 1],
-        }
-        for index, weekday in enumerate(WEEKDAYS)
-    ]
+        if eligible_pool < free_slot_count:
+            return JsonResponse(
+                {
+                    "error": (
+                        "Il n’y a pas assez de repas disponibles (hors « Jamais » "
+                        "et repas fixés) pour compléter le menu."
+                    )
+                },
+                status=400,
+            )
+        random_recipes = iter(_select_recipes(pool, frequencies, count=free_slot_count))
+    else:
+        random_recipes = iter([])
+
+    days = []
+    for index, weekday in enumerate(WEEKDAYS):
+        day = {"day": weekday, "weekday": index}
+        for meal_type in ("lunch", "dinner"):
+            fixed_recipe = slots.get((index, meal_type))
+            recipe = dict(fixed_recipe) if fixed_recipe else next(random_recipes)
+            recipe["fixed"] = fixed_recipe is not None
+            recipe["frequency"] = frequencies.get(
+                recipe["id"], MealFrequency.Frequency.REGULAR
+            )
+            day[meal_type] = recipe
+        days.append(day)
     return JsonResponse({"days": days})
+
+
+@require_GET
+def recipe_search(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Connectez-vous pour rechercher un repas."}, status=401)
+    query = request.GET.get("q", "").strip()
+    recipes = Recipe.objects.filter(name__icontains=query).values("id", "name")[:10]
+    return JsonResponse(list(recipes), safe=False)
+
+
+@require_POST
+def set_fixed_meal(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Connectez-vous pour fixer un repas."}, status=401)
+    try:
+        weekday = int(request.POST.get("weekday", ""))
+        recipe_id = int(request.POST.get("recipe_id", ""))
+    except ValueError:
+        return JsonResponse({"error": "Requête invalide."}, status=400)
+    meal_type = request.POST.get("meal_type")
+    if not 0 <= weekday <= 6 or meal_type not in FixedMeal.MealType.values:
+        return JsonResponse({"error": "Créneau invalide."}, status=400)
+    recipe = get_object_or_404(Recipe, pk=recipe_id)
+    FixedMeal.objects.update_or_create(
+        user=request.user,
+        weekday=weekday,
+        meal_type=meal_type,
+        defaults={"recipe": recipe},
+    )
+    return JsonResponse({"weekday": weekday, "meal_type": meal_type, "recipe_id": recipe.id})
+
+
+@require_http_methods(["DELETE"])
+def delete_fixed_meal(request, weekday, meal_type):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Connectez-vous pour modifier ce repas."}, status=401)
+    FixedMeal.objects.filter(
+        user=request.user, weekday=weekday, meal_type=meal_type
+    ).delete()
+    return JsonResponse({"weekday": weekday, "meal_type": meal_type})
 
 
 @login_required
