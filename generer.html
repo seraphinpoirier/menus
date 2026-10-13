@@ -42,6 +42,7 @@
   <div id="root"></div>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script type="text/babel">
     const WEEKDAYS_FR = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
@@ -146,6 +147,69 @@
         }
       }
 
+      function downloadPDF() {
+        setError('');
+        try {
+          if (!window.jspdf || !window.jspdf.jsPDF) {
+            throw new Error('Le générateur PDF n’est pas disponible. Veuillez réessayer.');
+          }
+
+          const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+          const pageWidth = pdf.internal.pageSize.getWidth();
+          const margin = 8;
+          const columns = 4;
+          const gap = 4;
+          const cardWidth = (pageWidth - margin * 2 - gap * (columns - 1)) / columns;
+          const cardHeight = 68;
+          const rowGap = 5;
+          const startY = 28;
+
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(18);
+          pdf.text('Votre menu de la semaine', margin, 18);
+
+          days.forEach((day, index) => {
+            const column = index % columns;
+            const row = Math.floor(index / columns);
+            const x = margin + column * (cardWidth + gap);
+            const y = startY + row * (cardHeight + rowGap);
+
+            pdf.setDrawColor(114, 155, 49);
+            pdf.setLineWidth(0.8);
+            pdf.roundedRect(x, y, cardWidth, cardHeight, 2, 2);
+
+            let textY = y + 8;
+            pdf.setTextColor(36, 48, 24);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(11);
+            pdf.text(day.day, x + 4, textY, { maxWidth: cardWidth - 8 });
+
+            const addMeal = (label, meal) => {
+              textY += label === 'Midi' ? 10 : 8;
+              pdf.setFont('helvetica', 'bold');
+              pdf.setFontSize(8);
+              pdf.setTextColor(25, 135, 84);
+              pdf.text(label.toUpperCase(), x + 4, textY);
+
+              textY += 5;
+              pdf.setFont('helvetica', 'normal');
+              pdf.setFontSize(9);
+              pdf.setTextColor(36, 48, 24);
+              const lines = pdf.splitTextToSize(meal.name, cardWidth - 8);
+              pdf.text(lines, x + 4, textY);
+              textY += lines.length * 4.5;
+            };
+
+            addMeal('Midi', day.lunch);
+            addMeal('Soir', day.dinner);
+          });
+
+          pdf.save('menu-de-la-semaine.pdf');
+        } catch (exception) {
+          setError(exception.message || 'Le téléchargement du PDF a échoué.');
+        }
+      }
+
       function frequencyMarker(frequency) {
         if (frequency === 'never') return <span className="frequency-marker never" aria-hidden="true">×</span>;
         return <span className={`frequency-marker ${frequency}`} aria-hidden="true" />;
@@ -207,7 +271,7 @@
         <main className="container py-5">
           <div className="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
             <div><p className="text-uppercase text-success fw-semibold mb-1">Cette semaine</p><h1 className="display-6 fw-bold mb-0">Votre menu</h1></div>
-            <div className="d-flex gap-2 no-print"><button className="btn btn-outline-success px-4" onClick={() => window.print()} disabled={!days.length}>Télécharger en PDF</button><button className="btn btn-success px-4" onClick={generateMenu} disabled={loading}>{loading ? 'Génération...' : 'Générer un autre menu'}</button></div>
+            <div className="d-flex gap-2 no-print"><button className="btn btn-outline-success px-4" onClick={downloadPDF} disabled={!days.length}>Télécharger en PDF</button><button className="btn btn-success px-4" onClick={generateMenu} disabled={loading}>{loading ? 'Génération...' : 'Générer un autre menu'}</button></div>
           </div>
           {error && <div className="alert alert-danger" role="alert">{error}</div>}
           {% if not user.is_authenticated %}
