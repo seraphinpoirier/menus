@@ -1,9 +1,40 @@
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 
 
 class Recipe(models.Model):
-	name = models.CharField(max_length=120, unique=True)
+	name = models.CharField(max_length=120, unique=True, verbose_name="Nom")
+	ingredients = models.TextField(verbose_name="Ingrédients", blank=True, default="")
+	instructions = models.TextField(verbose_name="Instructions", blank=True, default="")
+	preparation_time = models.PositiveIntegerField(
+		verbose_name="Temps de préparation (minutes)",
+		default=15
+	)
+	cooking_time = models.PositiveIntegerField(
+		verbose_name="Temps de cuisson (minutes)",
+		default=30
+	)
+	servings = models.PositiveIntegerField(
+		verbose_name="Nombre de portions",
+		default=4
+	)
+	recipe_url = models.URLField(
+		verbose_name="URL de la recette",
+		blank=True,
+		default=""
+	)
+	created_at = models.DateTimeField(
+		verbose_name="Créé le",
+		default=timezone.now
+	)
+	created_by = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		verbose_name="Créé par"
+	)
 
 	class Meta:
 		ordering = ["name"]
