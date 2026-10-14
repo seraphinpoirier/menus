@@ -72,7 +72,7 @@ class MealFrequency(models.Model):
 				name="recipes_mealfrequency_user_recipe_unique",
 			),
 			models.CheckConstraint(
-				condition=models.Q(frequency__in=["never", "regular", "very_frequent"]),
+				check=models.Q(frequency__in=["never", "regular", "very_frequent"]),
 				name="recipes_mealfrequency_frequency_valid",
 			),
 		]
@@ -106,11 +106,11 @@ class FixedMeal(models.Model):
 				name="recipes_fixedmeal_slot_unique",
 			),
 			models.CheckConstraint(
-				condition=models.Q(weekday__gte=0, weekday__lte=6),
+				check=models.Q(weekday__gte=0, weekday__lte=6),
 				name="recipes_fixedmeal_weekday_valid",
 			),
 			models.CheckConstraint(
-				condition=models.Q(meal_type__in=["lunch", "dinner"]),
+				check=models.Q(meal_type__in=["lunch", "dinner"]),
 				name="recipes_fixedmeal_type_valid",
 			),
 		]
@@ -135,9 +135,9 @@ class UserProfile(models.Model):
 	class Meta:
 		constraints = [
 			models.CheckConstraint(
-				condition=models.Q(avatar__in=["pfp_default.png", "pfp_1.png", "pfp_2.png"]),
+				check=models.Q(avatar__in=["pfp_default.png", "pfp_1.png", "pfp_2.png"]),
 				name="recipes_profile_avatar_valid",
-			)
+			),
 		]
 
 	def __str__(self):
