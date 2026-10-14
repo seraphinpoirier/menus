@@ -18,6 +18,22 @@
     .frequency-marker.very_frequent { border-radius: 50%; background: #77d64c; }
     .frequency-modal-backdrop { position: fixed; inset: 0; z-index: 1050; display: grid; place-items: center; padding: 1rem; background: rgb(0 0 0 / 50%); }
     .frequency-modal { width: min(100%, 34rem); background: white; border-radius: .5rem; box-shadow: 0 1rem 3rem rgb(0 0 0 / 25%); }
+    @page { size: A4 landscape; margin: 8mm; }
+    @media print {
+      .no-print, nav, main > p, .alert { display: none !important; }
+      body { background: white; font-size: 10pt; }
+      main { padding: 0 !important; max-width: none !important; }
+      main > div:first-child { margin-bottom: .4rem !important; }
+      main h1 { font-size: 16pt; }
+      main .row { display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 4px !important; margin: 0 !important; }
+      main .row > .col { width: auto; max-width: none; padding: 0; margin: 0; }
+      .meal-card { box-shadow: none !important; break-inside: avoid; }
+      .meal-card .card-body { padding: 4px 8px !important; }
+      .meal-card h2 { font-size: 11pt; margin-bottom: 2px !important; }
+      .meal-card p { font-size: 7pt; margin: 0 !important; }
+      .meal-line { min-height: 0; margin-bottom: 3px !important; font-size: 9pt; line-height: 1.15; }
+    }
+    .search-results { max-height: 12rem; overflow-y: auto; }
     .frequency-choice { min-width: 6rem; }
     .frequency-choice .frequency-marker { width: 2.5rem; height: 2.5rem; font-size: 2.5rem; }
   </style>
@@ -26,8 +42,10 @@
   <div id="root"></div>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script type="text/babel">
+    const WEEKDAYS_FR = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
     function Generator() {
       const [days, setDays] = React.useState([]);
       const [error, setError] = React.useState('');
@@ -35,6 +53,72 @@
       const [activeMeal, setActiveMeal] = React.useState(null);
       const [frequencyError, setFrequencyError] = React.useState('');
       const [savingFrequency, setSavingFrequency] = React.useState(false);
+      const [searchQuery, setSearchQuery] = React.useState('');
+      const [searchResults, setSearchResults] = React.useState([]);
+
+      const csrfToken = () => document.querySelector('meta[name="csrf-token"]').content;
+
+      React.useEffect(() => {
+        if (!activeMeal) return;
+        const controller = new AbortController();
+        const timer = setTimeout(async () => {
+          try {
+            const response = await fetch('/api/recipes/search/?q=' + encodeURIComponent(searchQuery), { signal: controller.signal });
+            if (response.ok) setSearchResults(await response.json());
+          } catch (exception) {}
+        }, 250);
+        return () => { clearTimeout(timer); controller.abort(); };
+      }, [searchQuery, activeMeal]);
+
+      function openMeal(meal, weekday, mealType) {
+        setActiveMeal({ ...meal, weekday, mealType });
+        setFrequencyError('');
+        setSearchQuery('');
+        setSearchResults([]);
+      }
+
+      function updateSlot(weekday, mealType, changes) {
+        setDays(currentDays => currentDays.map(day => day.weekday === weekday ? { ...day, [mealType]: { ...day[mealType], ...changes } } : day));
+      }
+
+      async function pinMeal(recipe) {
+        setSavingFrequency(true);
+        setFrequencyError('');
+        try {
+          const response = await fetch('/api/fixed-meals/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken() },
+            body: new URLSearchParams({ weekday: activeMeal.weekday, meal_type: activeMeal.mealType, recipe_id: recipe.id })
+          });
+          const data = await readJsonResponse(response, 'Le repas n’a pas pu être fixé.');
+          if (!response.ok) throw new Error(data.error || 'Le repas n’a pas pu être fixé.');
+          updateSlot(activeMeal.weekday, activeMeal.mealType, { id: recipe.id, name: recipe.name, fixed: true, frequency: 'regular' });
+          setActiveMeal(null);
+        } catch (exception) {
+          setFrequencyError(exception.message);
+        } finally {
+          setSavingFrequency(false);
+        }
+      }
+
+      async function unpinMeal() {
+        setSavingFrequency(true);
+        setFrequencyError('');
+        try {
+          const response = await fetch(`/api/fixed-meals/${activeMeal.weekday}/${activeMeal.mealType}/`, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': csrfToken() }
+          });
+          const data = await readJsonResponse(response, 'Le repas n’a pas pu être retiré.');
+          if (!response.ok) throw new Error(data.error || 'Le repas n’a pas pu être retiré.');
+          updateSlot(activeMeal.weekday, activeMeal.mealType, { fixed: false });
+          setActiveMeal(null);
+        } catch (exception) {
+          setFrequencyError(exception.message);
+        } finally {
+          setSavingFrequency(false);
+        }
+      }
 
       async function readJsonResponse(response, fallbackMessage) {
         const contentType = response.headers.get('content-type') || '';
@@ -60,6 +144,69 @@
           setError(exception.message);
         } finally {
           setLoading(false);
+        }
+      }
+
+      function downloadPDF() {
+        setError('');
+        try {
+          if (!window.jspdf || !window.jspdf.jsPDF) {
+            throw new Error('Le générateur PDF n’est pas disponible. Veuillez réessayer.');
+          }
+
+          const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+          const pageWidth = pdf.internal.pageSize.getWidth();
+          const margin = 8;
+          const columns = 4;
+          const gap = 4;
+          const cardWidth = (pageWidth - margin * 2 - gap * (columns - 1)) / columns;
+          const cardHeight = 68;
+          const rowGap = 5;
+          const startY = 28;
+
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(18);
+          pdf.text('Votre menu de la semaine', margin, 18);
+
+          days.forEach((day, index) => {
+            const column = index % columns;
+            const row = Math.floor(index / columns);
+            const x = margin + column * (cardWidth + gap);
+            const y = startY + row * (cardHeight + rowGap);
+
+            pdf.setDrawColor(114, 155, 49);
+            pdf.setLineWidth(0.8);
+            pdf.roundedRect(x, y, cardWidth, cardHeight, 2, 2);
+
+            let textY = y + 8;
+            pdf.setTextColor(36, 48, 24);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(11);
+            pdf.text(day.day, x + 4, textY, { maxWidth: cardWidth - 8 });
+
+            const addMeal = (label, meal) => {
+              textY += label === 'Midi' ? 10 : 8;
+              pdf.setFont('helvetica', 'bold');
+              pdf.setFontSize(8);
+              pdf.setTextColor(25, 135, 84);
+              pdf.text(label.toUpperCase(), x + 4, textY);
+
+              textY += 5;
+              pdf.setFont('helvetica', 'normal');
+              pdf.setFontSize(9);
+              pdf.setTextColor(36, 48, 24);
+              const lines = pdf.splitTextToSize(meal.name, cardWidth - 8);
+              pdf.text(lines, x + 4, textY);
+              textY += lines.length * 4.5;
+            };
+
+            addMeal('Midi', day.lunch);
+            addMeal('Soir', day.dinner);
+          });
+
+          pdf.save('menu-de-la-semaine.pdf');
+        } catch (exception) {
+          setError(exception.message || 'Le téléchargement du PDF a échoué.');
         }
       }
 
@@ -95,12 +242,12 @@
         }
       }
 
-      function mealLine(meal) {
+      function mealLine(meal, weekday, mealType) {
         return <div className="meal-line d-flex align-items-center gap-2 mb-3">
-          <span className="flex-grow-1">{meal.name}</span>
+          <span className="flex-grow-1">{meal.fixed && <span title="Repas fixé" aria-label="Repas fixé">📌 </span>}{meal.name}</span>
           {% if user.is_authenticated %}
-          <button className="btn btn-sm btn-light border d-inline-flex align-items-center gap-2" type="button" title={`Modifier la fréquence de ${meal.name}`} aria-label={`Modifier la fréquence de ${meal.name}`} onClick={() => { setActiveMeal(meal); setFrequencyError(''); }}>
-            {frequencyMarker(meal.frequency || 'regular')}
+          <button className="btn btn-sm btn-light border no-print" type="button" title={`Modifier la fréquence de ${meal.name}`} aria-label={`Modifier la fréquence de ${meal.name}`} onClick={() => openMeal(meal, weekday, mealType)}>
+            ...
           </button>
           {% else %}
           <a className="btn btn-sm btn-light border" href="{% url 'login' %}?next={% url 'generator' %}" title="Connectez-vous pour régler la fréquence" aria-label="Connectez-vous pour régler la fréquence">⚙</a>
@@ -124,7 +271,7 @@
         <main className="container py-5">
           <div className="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
             <div><p className="text-uppercase text-success fw-semibold mb-1">Cette semaine</p><h1 className="display-6 fw-bold mb-0">Votre menu</h1></div>
-            <button className="btn btn-success px-4" onClick={generateMenu} disabled={loading}>{loading ? 'Génération...' : 'Générer un autre menu'}</button>
+            <div className="d-flex gap-2 no-print"><button className="btn btn-outline-success px-4" onClick={downloadPDF} disabled={!days.length}>Télécharger en PDF</button><button className="btn btn-success px-4" onClick={generateMenu} disabled={loading}>{loading ? 'Génération...' : 'Générer un autre menu'}</button></div>
           </div>
           {error && <div className="alert alert-danger" role="alert">{error}</div>}
           {% if not user.is_authenticated %}
@@ -132,12 +279,12 @@
           {% endif %}
           {loading && !days.length && <p className="text-muted">Préparation de vos repas...</p>}
           <div className="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
-            {days.map((day) => <article className="col" key={day.day}><div className="card meal-card h-100 shadow-sm"><div className="card-body"><h2 className="h4 card-title mb-4">{day.day}</h2><p className="text-uppercase small text-success fw-bold mb-1">Midi</p>{mealLine(day.lunch)}<p className="text-uppercase small text-success fw-bold mb-1">Soir</p>{mealLine(day.dinner)}</div></div></article>)}
+            {days.map((day) => <article className="col" key={day.day}><div className="card meal-card h-100 shadow-sm"><div className="card-body"><h2 className="h4 card-title mb-4">{day.day}</h2><p className="text-uppercase small text-success fw-bold mb-1">Midi</p>{mealLine(day.lunch, day.weekday, 'lunch')}<p className="text-uppercase small text-success fw-bold mb-1">Soir</p>{mealLine(day.dinner, day.weekday, 'dinner')}</div></div></article>)}
           </div>
           {activeMeal && <div className="frequency-modal-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget && !savingFrequency) setActiveMeal(null); }}>
             <section className="frequency-modal p-4" role="dialog" aria-modal="true" aria-labelledby="frequency-modal-title">
               <div className="d-flex align-items-start justify-content-between gap-3 mb-3">
-                <div><h2 className="h4 mb-1" id="frequency-modal-title">Fréquence du repas</h2><p className="text-muted mb-0">{activeMeal.name}</p></div>
+                <div><h2 className="h4 mb-1" id="frequency-modal-title">Options du repas</h2><p className="text-muted mb-0">{activeMeal.name}</p></div>
                 <button className="btn-close" type="button" aria-label="Fermer" disabled={savingFrequency} onClick={() => setActiveMeal(null)} />
               </div>
               {frequencyError && <div className="alert alert-danger py-2" role="alert">{frequencyError}</div>}
@@ -150,6 +297,14 @@
                   {frequencyMarker(frequency)}<span>{label}</span>
                 </button>)}
               </div>
+              <hr />
+              <label className="form-label fw-semibold" htmlFor="fixed-meal-search">Toujours choisir :</label>
+              <p className="small text-muted mb-2">Ce repas sera toujours proposé le {WEEKDAYS_FR[activeMeal.weekday]} {activeMeal.mealType === 'lunch' ? 'midi' : 'soir'}.</p>
+              <input className="form-control mb-2" id="fixed-meal-search" type="search" placeholder="Rechercher un repas..." value={searchQuery} disabled={savingFrequency} onChange={event => setSearchQuery(event.target.value)} autoComplete="off" />
+              <div className="list-group mb-2 search-results">
+                {searchResults.map(recipe => <button className="list-group-item list-group-item-action" type="button" key={recipe.id} disabled={savingFrequency} onClick={() => pinMeal(recipe)}>{recipe.name}</button>)}
+              </div>
+              {activeMeal.fixed && <button className="btn btn-outline-danger btn-sm" type="button" disabled={savingFrequency} onClick={unpinMeal}>Retirer le repas fixé</button>}
               {savingFrequency && <p className="text-center text-muted mt-3 mb-0">Enregistrement...</p>}
             </section>
           </div>}

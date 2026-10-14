@@ -81,6 +81,44 @@ class MealFrequency(models.Model):
 		return f"{self.user} - {self.recipe}: {self.get_frequency_display()}"
 
 
+class FixedMeal(models.Model):
+	class MealType(models.TextChoices):
+		LUNCH = "lunch", "Midi"
+		DINNER = "dinner", "Soir"
+
+	user = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.CASCADE,
+		related_name="fixed_meals",
+	)
+	weekday = models.PositiveSmallIntegerField()
+	meal_type = models.CharField(max_length=10, choices=MealType.choices)
+	recipe = models.ForeignKey(
+		Recipe,
+		on_delete=models.CASCADE,
+		related_name="fixed_slots",
+	)
+
+	class Meta:
+		constraints = [
+			models.UniqueConstraint(
+				fields=["user", "weekday", "meal_type"],
+				name="recipes_fixedmeal_slot_unique",
+			),
+			models.CheckConstraint(
+				condition=models.Q(weekday__gte=0, weekday__lte=6),
+				name="recipes_fixedmeal_weekday_valid",
+			),
+			models.CheckConstraint(
+				condition=models.Q(meal_type__in=["lunch", "dinner"]),
+				name="recipes_fixedmeal_type_valid",
+			),
+		]
+
+	def __str__(self):
+		return f"{self.user} - {self.weekday}/{self.meal_type}: {self.recipe}"
+
+
 class UserProfile(models.Model):
 	class Avatar(models.TextChoices):
 		DEFAULT = "pfp_default.png", "Par défaut"

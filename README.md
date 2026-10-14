@@ -21,6 +21,7 @@ Ouvrir `http://127.0.0.1:8000/`.
 
 - Accueil avec le bouton « Commencer ».
 - Génération de sept jours de repas, avec un repas différent le midi et le soir.
+- Téléchargement direct du menu de la semaine au format PDF.
 - Base SQLite contenant 20 repas initiaux limités à leur nom.
 - Création de compte avec un nom d'utilisateur et un mot de passe à confirmer, puis ouverture automatique d'une session.
 - Connexion avec le nom d'utilisateur et le mot de passe du compte.

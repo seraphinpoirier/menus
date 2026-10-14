@@ -17,6 +17,13 @@ urlpatterns = [
         views.update_meal_frequency_api,
         name="meal-frequency-update-api",
     ),
+    path("api/recipes/search/", views.recipe_search, name="recipe-search"),
+    path("api/fixed-meals/", views.set_fixed_meal, name="fixed-meal-set"),
+    path(
+        "api/fixed-meals/<int:weekday>/<str:meal_type>/",
+        views.delete_fixed_meal,
+        name="fixed-meal-delete",
+    ),
     path("api/weekly-menus/generate/", views.generate_weekly_menu, name="weekly-menu-generate"),
     path(
         "repas/<int:recipe_id>/",
