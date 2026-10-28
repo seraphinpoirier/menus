@@ -31,7 +31,7 @@ class Migration(migrations.Migration):
 			],
 			options={
 				"constraints": [
-					models.CheckConstraint(condition=models.Q(("avatar__in", AVATARS)), name="recipes_profile_avatar_valid"),
+					models.CheckConstraint(check=models.Q(("avatar__in", AVATARS)), name="recipes_profile_avatar_valid"),
 				],
 			},
 		),

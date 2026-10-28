@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='fixed_meals', to=settings.AUTH_USER_MODEL)),
             ],
             options={
-                'constraints': [models.UniqueConstraint(fields=('user', 'weekday', 'meal_type'), name='recipes_fixedmeal_slot_unique'), models.CheckConstraint(condition=models.Q(('weekday__gte', 0), ('weekday__lte', 6)), name='recipes_fixedmeal_weekday_valid'), models.CheckConstraint(condition=models.Q(('meal_type__in', ['lunch', 'dinner'])), name='recipes_fixedmeal_type_valid')],
+                'constraints': [models.UniqueConstraint(fields=('user', 'weekday', 'meal_type'), name='recipes_fixedmeal_slot_unique'), models.CheckConstraint(check=models.Q(('weekday__gte', 0), ('weekday__lte', 6)), name='recipes_fixedmeal_weekday_valid'), models.CheckConstraint(check=models.Q(('meal_type__in', ['lunch', 'dinner'])), name='recipes_fixedmeal_type_valid')],
             },
         ),
     ]

@@ -50,7 +50,7 @@ class Migration(migrations.Migration):
 						name="recipes_mealfrequency_user_recipe_unique",
 					),
 					models.CheckConstraint(
-						condition=models.Q(frequency__in=["never", "regular", "very_frequent"]),
+						check=models.Q(frequency__in=["never", "regular", "very_frequent"]),
 						name="recipes_mealfrequency_frequency_valid",
 					),
 				],
