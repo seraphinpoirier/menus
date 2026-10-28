@@ -27,6 +27,10 @@ def home(request):
 
 def generator(request):
     context = _profile_context(request)
+    context["has_saved_menus"] = (
+        request.user.is_authenticated
+        and SavedMenu.objects.filter(user=request.user).exists()
+    )
     return render(request, "generer.html", context)
 
 

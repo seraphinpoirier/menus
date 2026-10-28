@@ -59,6 +59,7 @@
       const [recipe, setRecipe] = React.useState(null);
       const [recipeError, setRecipeError] = React.useState('');
       const [saveMessage, setSaveMessage] = React.useState('');
+      const [hasSavedMenus, setHasSavedMenus] = React.useState({% if has_saved_menus %}true{% else %}false{% endif %});
 
       async function openRecipe(meal) {
         setRecipe({ name: meal.name, loading: true });
@@ -83,6 +84,7 @@
           });
           const data = await readJsonResponse(response, 'La sauvegarde a échoué.');
           if (!response.ok) throw new Error(data.error || 'La sauvegarde a échoué.');
+          setHasSavedMenus(true);
           setSaveMessage('Menu sauvegardé pour la semaine du ' + new Date(data.week_start + 'T00:00:00').toLocaleDateString('fr-FR') + '.');
         } catch (exception) {
           setError(exception.message);
@@ -295,8 +297,10 @@
         <nav className="navbar bg-white shadow-sm px-4 px-md-5 py-3">
           <a className="navbar-brand fs-3 fw-bold text-success" href="/">Menus</a>
           {% if user.is_authenticated %}
-          <a className="btn btn-outline-success ms-auto" href="{% url 'saved-menus' %}">Menus sauvegardés</a>
-          <a className="btn btn-outline-success ms-2" href="{% url 'create-recipe' %}">Ajouter une recette</a>
+          <div className="ms-auto d-flex gap-2">
+          {hasSavedMenus && <a className="btn btn-outline-success" href="{% url 'saved-menus' %}">Menus sauvegardés</a>}
+          <a className="btn btn-outline-success" href="{% url 'create-recipe' %}">Ajouter une recette</a>
+          </div>
           <form className="ms-2" method="post" action="{% url 'logout' %}"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}" /><button className="btn btn-outline-success" type="submit">Se déconnecter</button></form>
           <a className="btn btn-light border p-1 ms-2" href="{% url 'profile' %}" aria-label="Modifier mon profil" title="Modifier mon profil"><img src="{% static 'profile_pictures/' %}{{ profile.avatar }}" alt="Photo de profil de {{ user.username }}" title="Photo de profil de {{ user.username }}" width="40" height="40" className="rounded-circle" /></a>
           {% else %}

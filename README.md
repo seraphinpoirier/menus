@@ -9,11 +9,21 @@ Générateur de menus pour la semaine. Outil multi-utilisateurs qui permet de g�
 
 ## Démarrage local
 
+Prérequis : Python 3.12+ et Django 5.2 (`requirements.txt` impose `Django>=5.2,<6.0` ; Django 6 n'est pas compatible avec le code actuel).
+
+Il est recommandé d'utiliser un environnement virtuel pour ne pas mélanger les versions de Django.
+
 ```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
 ```
+
+Sous macOS/Linux : `source ./create_venv.sh` crée l'environnement, installe les dépendances, applique les migrations, lance les tests et démarre le serveur.
+
+Relancer `python manage.py migrate` après chaque mise à jour du code : de nouvelles migrations (par exemple celle des menus sauvegardés) créent les tables nécessaires. Sans cela, certaines pages renvoient l'erreur « no such table ».
 
 Ouvrir `http://127.0.0.1:8000/`.
 
@@ -21,6 +31,9 @@ Ouvrir `http://127.0.0.1:8000/`.
 
 - Accueil avec le bouton « Commencer ».
 - Génération de sept jours de repas, avec un repas différent le midi et le soir.
+- Recette consultable en pop-up (bouton 📖) à côté de chaque repas, sur la page de génération et sur celle des menus sauvegardés.
+- Sauvegarde du menu généré (utilisateur connecté), daté du lundi de la semaine en cours; une nouvelle sauvegarde la même semaine remplace la précédente.
+- `/menus-sauvegardes/` liste les menus sauvegardés par ordre chronologique. Le bouton « Menus sauvegardés » n'apparaît que si au moins un menu existe.
 - Téléchargement direct du menu de la semaine au format PDF.
 - Base SQLite contenant 20 repas initiaux limités à leur nom.
 - Création de compte avec un nom d'utilisateur et un mot de passe à confirmer, puis ouverture automatique d'une session.
