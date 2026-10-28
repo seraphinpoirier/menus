@@ -17,7 +17,8 @@
     .frequency-marker.regular { border-radius: 50%; background: linear-gradient(90deg, #198754 50%, #888 50%); }
     .frequency-marker.very_frequent { border-radius: 50%; background: #77d64c; }
     .frequency-modal-backdrop { position: fixed; inset: 0; z-index: 1050; display: grid; place-items: center; padding: 1rem; background: rgb(0 0 0 / 50%); }
-    .frequency-modal { width: min(100%, 34rem); background: white; border-radius: .5rem; box-shadow: 0 1rem 3rem rgb(0 0 0 / 25%); }
+    .frequency-modal { max-height: 90vh; overflow-y: auto; width: min(100%, 34rem); background: white; border-radius: .5rem; box-shadow: 0 1rem 3rem rgb(0 0 0 / 25%); }
+    .pre-line { white-space: pre-line; }
     @page { size: A4 landscape; margin: 8mm; }
     @media print {
       .no-print, nav, main > p, .alert { display: none !important; }
@@ -55,6 +56,38 @@
       const [savingFrequency, setSavingFrequency] = React.useState(false);
       const [searchQuery, setSearchQuery] = React.useState('');
       const [searchResults, setSearchResults] = React.useState([]);
+      const [recipe, setRecipe] = React.useState(null);
+      const [recipeError, setRecipeError] = React.useState('');
+      const [saveMessage, setSaveMessage] = React.useState('');
+
+      async function openRecipe(meal) {
+        setRecipe({ name: meal.name, loading: true });
+        setRecipeError('');
+        try {
+          const response = await fetch(`/api/recipes/${meal.id}/`);
+          if (!response.ok) throw new Error('La recette est introuvable.');
+          setRecipe(await response.json());
+        } catch (exception) {
+          setRecipeError(exception.message);
+        }
+      }
+
+      async function saveMenu() {
+        setError('');
+        setSaveMessage('');
+        try {
+          const response = await fetch('/api/weekly-menus/save/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            body: JSON.stringify({ days })
+          });
+          const data = await readJsonResponse(response, 'La sauvegarde a échoué.');
+          if (!response.ok) throw new Error(data.error || 'La sauvegarde a échoué.');
+          setSaveMessage('Menu sauvegardé pour la semaine du ' + new Date(data.week_start + 'T00:00:00').toLocaleDateString('fr-FR') + '.');
+        } catch (exception) {
+          setError(exception.message);
+        }
+      }
 
       const csrfToken = () => document.querySelector('meta[name="csrf-token"]').content;
 
@@ -245,6 +278,7 @@
       function mealLine(meal, weekday, mealType) {
         return <div className="meal-line d-flex align-items-center gap-2 mb-3">
           <span className="flex-grow-1">{meal.fixed && <span title="Repas fixé" aria-label="Repas fixé">📌 </span>}{meal.name}</span>
+          <button className="btn btn-sm btn-light border no-print" type="button" title={`Voir la recette de ${meal.name}`} aria-label={`Voir la recette de ${meal.name}`} onClick={() => openRecipe(meal)}>📖</button>
           {% if user.is_authenticated %}
           <button className="btn btn-sm btn-light border no-print" type="button" title={`Modifier la fréquence de ${meal.name}`} aria-label={`Modifier la fréquence de ${meal.name}`} onClick={() => openMeal(meal, weekday, mealType)}>
             ...
@@ -261,7 +295,8 @@
         <nav className="navbar bg-white shadow-sm px-4 px-md-5 py-3">
           <a className="navbar-brand fs-3 fw-bold text-success" href="/">Menus</a>
           {% if user.is_authenticated %}
-          <a className="btn btn-outline-success ms-auto" href="{% url 'create-recipe' %}">Ajouter une recette</a>
+          <a className="btn btn-outline-success ms-auto" href="{% url 'saved-menus' %}">Menus sauvegardés</a>
+          <a className="btn btn-outline-success ms-2" href="{% url 'create-recipe' %}">Ajouter une recette</a>
           <form className="ms-2" method="post" action="{% url 'logout' %}"><input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}" /><button className="btn btn-outline-success" type="submit">Se déconnecter</button></form>
           <a className="btn btn-light border p-1 ms-2" href="{% url 'profile' %}" aria-label="Modifier mon profil" title="Modifier mon profil"><img src="{% static 'profile_pictures/' %}{{ profile.avatar }}" alt="Photo de profil de {{ user.username }}" title="Photo de profil de {{ user.username }}" width="40" height="40" className="rounded-circle" /></a>
           {% else %}
@@ -271,9 +306,10 @@
         <main className="container py-5">
           <div className="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
             <div><p className="text-uppercase text-success fw-semibold mb-1">Cette semaine</p><h1 className="display-6 fw-bold mb-0">Votre menu</h1></div>
-            <div className="d-flex gap-2 no-print"><button className="btn btn-outline-success px-4" onClick={downloadPDF} disabled={!days.length}>Télécharger en PDF</button><button className="btn btn-success px-4" onClick={generateMenu} disabled={loading}>{loading ? 'Génération...' : 'Générer un autre menu'}</button></div>
+            <div className="d-flex gap-2 no-print">{% if user.is_authenticated %}<button className="btn btn-outline-success px-4" onClick={saveMenu} disabled={!days.length}>Sauvegarder ce menu</button>{% endif %}<button className="btn btn-outline-success px-4" onClick={downloadPDF} disabled={!days.length}>Télécharger en PDF</button><button className="btn btn-success px-4" onClick={generateMenu} disabled={loading}>{loading ? 'Génération...' : 'Générer un autre menu'}</button></div>
           </div>
           {error && <div className="alert alert-danger" role="alert">{error}</div>}
+          {saveMessage && <div className="alert alert-success" role="status">{saveMessage}</div>}
           {% if not user.is_authenticated %}
           <p className="text-muted">Connectez-vous pour personnaliser la fréquence de vos repas.</p>
           {% endif %}
@@ -281,6 +317,24 @@
           <div className="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
             {days.map((day) => <article className="col" key={day.day}><div className="card meal-card h-100 shadow-sm"><div className="card-body"><h2 className="h4 card-title mb-4">{day.day}</h2><p className="text-uppercase small text-success fw-bold mb-1">Midi</p>{mealLine(day.lunch, day.weekday, 'lunch')}<p className="text-uppercase small text-success fw-bold mb-1">Soir</p>{mealLine(day.dinner, day.weekday, 'dinner')}</div></div></article>)}
           </div>
+          {recipe && <div className="frequency-modal-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget) setRecipe(null); }}>
+            <section className="frequency-modal p-4" role="dialog" aria-modal="true" aria-labelledby="recipe-modal-title">
+              <div className="d-flex align-items-start justify-content-between gap-3 mb-3">
+                <h2 className="h4 mb-0" id="recipe-modal-title">{recipe.name}</h2>
+                <button className="btn-close" type="button" aria-label="Fermer" onClick={() => setRecipe(null)} />
+              </div>
+              {recipeError && <div className="alert alert-danger py-2" role="alert">{recipeError}</div>}
+              {recipe.loading && !recipeError && <p className="text-muted">Chargement...</p>}
+              {!recipe.loading && <>
+                <p className="small text-muted">Préparation : {recipe.preparation_time} min · Cuisson : {recipe.cooking_time} min · {recipe.servings} portions</p>
+                <h3 className="h6 text-success">Ingrédients</h3>
+                <p className="pre-line">{recipe.ingredients || 'Non renseignés.'}</p>
+                <h3 className="h6 text-success">Instructions</h3>
+                <p className="pre-line">{recipe.instructions || 'Non renseignées.'}</p>
+                {recipe.recipe_url && <a href={recipe.recipe_url} target="_blank" rel="noopener noreferrer">Voir la recette en ligne</a>}
+              </>}
+            </section>
+          </div>}
           {activeMeal && <div className="frequency-modal-backdrop" role="presentation" onClick={event => { if (event.target === event.currentTarget && !savingFrequency) setActiveMeal(null); }}>
             <section className="frequency-modal p-4" role="dialog" aria-modal="true" aria-labelledby="frequency-modal-title">
               <div className="d-flex align-items-start justify-content-between gap-3 mb-3">
