@@ -1,15 +1,19 @@
+import json
 import random
+from datetime import timedelta
 
 from django.contrib.auth import login, logout
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from .forms import ProfileForm, RecipeForm
-from .models import FixedMeal, MealFrequency, Recipe, UserProfile
+from .models import FixedMeal, MealFrequency, Recipe, SavedMenu, SavedMenuMeal, UserProfile
 
 WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 MEALS_PER_WEEK = 14
@@ -23,6 +27,10 @@ def home(request):
 
 def generator(request):
     context = _profile_context(request)
+    context["has_saved_menus"] = (
+        request.user.is_authenticated
+        and SavedMenu.objects.filter(user=request.user).exists()
+    )
     return render(request, "generer.html", context)
 
 
@@ -293,6 +301,82 @@ def generate_weekly_menu(request):
             day[meal_type] = recipe
         days.append(day)
     return JsonResponse({"days": days})
+
+
+@require_GET
+def recipe_detail(request, recipe_id):
+    recipe = get_object_or_404(Recipe, pk=recipe_id)
+    return JsonResponse(
+        {
+            "id": recipe.id,
+            "name": recipe.name,
+            "ingredients": recipe.ingredients,
+            "instructions": recipe.instructions,
+            "preparation_time": recipe.preparation_time,
+            "cooking_time": recipe.cooking_time,
+            "servings": recipe.servings,
+            "recipe_url": recipe.recipe_url,
+        }
+    )
+
+
+def _current_week_start():
+    today = timezone.localdate()
+    return today - timedelta(days=today.weekday())
+
+
+@require_POST
+def save_weekly_menu(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Connectez-vous pour sauvegarder ce menu."}, status=401)
+    try:
+        days = json.loads(request.body)["days"]
+        entries = {}
+        for day in days:
+            for meal_type in FixedMeal.MealType.values:
+                weekday = int(day["weekday"])
+                if not 0 <= weekday <= 6:
+                    raise ValueError
+                entries[(weekday, meal_type)] = int(day[meal_type]["id"])
+    except (ValueError, KeyError, TypeError):
+        return JsonResponse({"error": "Menu invalide."}, status=400)
+
+    recipes = Recipe.objects.in_bulk(set(entries.values()))
+    if len(entries) != MEALS_PER_WEEK or len(recipes) != len(set(entries.values())):
+        return JsonResponse({"error": "Menu invalide."}, status=400)
+
+    week_start = _current_week_start()
+    with transaction.atomic():
+        menu, _ = SavedMenu.objects.get_or_create(user=request.user, week_start=week_start)
+        menu.meals.all().delete()
+        SavedMenuMeal.objects.bulk_create(
+            SavedMenuMeal(menu=menu, weekday=weekday, meal_type=meal_type, recipe=recipes[recipe_id])
+            for (weekday, meal_type), recipe_id in entries.items()
+        )
+    return JsonResponse({"week_start": week_start.isoformat()})
+
+
+@login_required
+@require_GET
+def saved_menus_page(request):
+    menus = []
+    queryset = SavedMenu.objects.filter(user=request.user).prefetch_related("meals__recipe")
+    for menu in queryset:
+        slots = {(meal.weekday, meal.meal_type): meal.recipe for meal in menu.meals.all()}
+        days = [
+            {"name": name, "lunch": slots.get((index, "lunch")), "dinner": slots.get((index, "dinner"))}
+            for index, name in enumerate(WEEKDAYS)
+        ]
+        menus.append(
+            {
+                "week_start": menu.week_start,
+                "week_end": menu.week_start + timedelta(days=6),
+                "days": days,
+            }
+        )
+    context = _profile_context(request)
+    context["menus"] = menus
+    return render(request, "menus-sauvegardes.html", context)
 
 
 @require_GET

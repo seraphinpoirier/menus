@@ -119,6 +119,44 @@ class FixedMeal(models.Model):
 		return f"{self.user} - {self.weekday}/{self.meal_type}: {self.recipe}"
 
 
+class SavedMenu(models.Model):
+	user = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.CASCADE,
+		related_name="saved_menus",
+	)
+	week_start = models.DateField(verbose_name="Début de semaine (lundi)")
+	created_at = models.DateTimeField(default=timezone.now)
+
+	class Meta:
+		ordering = ["week_start"]
+		constraints = [
+			models.UniqueConstraint(
+				fields=["user", "week_start"],
+				name="recipes_savedmenu_user_week_unique",
+			),
+		]
+
+	def __str__(self):
+		return f"{self.user} - semaine du {self.week_start}"
+
+
+class SavedMenuMeal(models.Model):
+	menu = models.ForeignKey(SavedMenu, on_delete=models.CASCADE, related_name="meals")
+	weekday = models.PositiveSmallIntegerField()
+	meal_type = models.CharField(max_length=10, choices=FixedMeal.MealType.choices)
+	recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, related_name="saved_menu_meals")
+
+	class Meta:
+		ordering = ["weekday", "meal_type"]
+		constraints = [
+			models.UniqueConstraint(
+				fields=["menu", "weekday", "meal_type"],
+				name="recipes_savedmenumeal_slot_unique",
+			),
+		]
+
+
 class UserProfile(models.Model):
 	class Avatar(models.TextChoices):
 		DEFAULT = "pfp_default.png", "Par défaut"

@@ -18,6 +18,9 @@ urlpatterns = [
         name="meal-frequency-update-api",
     ),
     path("api/recipes/search/", views.recipe_search, name="recipe-search"),
+    path("api/recipes/<int:recipe_id>/", views.recipe_detail, name="recipe-detail"),
+    path("api/weekly-menus/save/", views.save_weekly_menu, name="weekly-menu-save"),
+    path("menus-sauvegardes/", views.saved_menus_page, name="saved-menus"),
     path("api/fixed-meals/", views.set_fixed_meal, name="fixed-meal-set"),
     path(
         "api/fixed-meals/<int:weekday>/<str:meal_type>/",
